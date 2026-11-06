@@ -1,0 +1,100 @@
+"""GIF library: moods mapped to Telegram file_ids (uploaded from Tenor).
+
+Each mood holds several GIFs so the same one does not repeat in a chat.
+Generated 2026-11-06; regenerate by re-uploading and replacing this dict."""
+
+from typing import Dict, List
+
+GIFS_BY_MOOD: Dict[str, List[str]] = {
+    "laugh": [
+        "CgACAgIAAxkDAAMTau0adjFhsE2ljSuq5NVXOiAyTGwAAtS4AAIWGWhLynyEswqLZJg9BA",
+        "CgACAgIAAxkDAAMUau0adyi6qZJ445dlMr0zQPkAAVB7AALVuAACFhloS4v_pGVFdjHoPQQ",
+        "CgACAgIAAxkDAAMVau0aef6GvKC_PpbpGpd-JqM6vp4AAta4AAIWGWhLv8PpaQ-dD8Y9BA",
+        "CgACAgIAAxkDAAMWau0aepRKRB-62NMGFHDcJqtOroUAAte4AAIWGWhLw4XMtb4R-1Y9BA",
+        "CgACAgIAAxkDAAMXau0aeyKEAUkp2zSl5ax961JdZO8AAti4AAIWGWhLP7MXmd45nUo9BA",
+        "CgACAgIAAxkDAAMYau0afPQNLex5QGndNCnOZ9QIdOQAAtm4AAIWGWhLRW4sgZ_Lm5I9BA",
+        "CgACAgIAAxkDAAMZau0afWc2q-BXH5oU5arEzSpb9RkAAtq4AAIWGWhL4dfozWb6U4U9BA",
+    ],
+    "cry": [
+        "CgACAgIAAxkDAAMaau0afoXWZKf0DBoAAf-ENoJFq2sjAALbuAACFhloS5PQU4QIV7WYPQQ",
+        "CgACAgIAAxkDAAMbau0afx3arwVhfgMv1izpU6gHSO4AAty4AAIWGWhL96oxROKQnno9BA",
+        "CgACAgIAAxkDAAMcau0agToRZBwm9nKSj2Q_5JPKnp8AAt24AAIWGWhLbfHMgUWsyRE9BA",
+        "CgACAgIAAxkDAAMdau0aggbsg5FpNR0fl_vEHc2qa-0AAt64AAIWGWhLUFkcznKjw5Y9BA",
+        "CgACAgIAAxkDAAMeau0ag8tuzh6ivkl1onVBfQrWa8kAAt-4AAIWGWhLZdzV0GE5O4g9BA",
+        "CgACAgIAAxkDAAMfau0ahLSUg6799Q32HvQ4tuUxrE0AAuC4AAIWGWhLI_S8Ema8Veo9BA",
+        "CgACAgIAAxkDAAMgau0ahTtHaEb6UxXfJFS_p1dHadoAAuG4AAIWGWhLhjNx1N_vkTM9BA",
+    ],
+    "angry": [
+        "CgACAgIAAxkDAAMhau0ahpP8oum7OwXjlEK90tnmz7MAAuK4AAIWGWhLu2CouAwb7TM9BA",
+        "CgACAgIAAxkDAAMiau0ah_Hh5R8r2E9ypZap3Tim-rYAAuO4AAIWGWhLX-PK17nZmnw9BA",
+        "CgACAgIAAxkDAAMjau0aiJ00jwqo3zcwiRnx-doMkugAAuS4AAIWGWhLX1oTxTruWNk9BA",
+        "CgACAgIAAxkDAAMkau0aiTSLNJJd56aoirSeqhnqXJQAAuW4AAIWGWhLaqAaSuR57eU9BA",
+        "CgACAgIAAxkDAAMlau0aisfW41pYfFVKcQO9d_oe-jIAAua4AAIWGWhLEaF507Q4_dg9BA",
+        "CgACAgIAAxkDAAMmau0ai_HtyBo3zF0JOK6wOo55GIsAAue4AAIWGWhLGuGJmOL5VeA9BA",
+        "CgACAgIAAxkDAAMnau0ajBt2Y40T8QABN7zCUGIiZDHJAALouAACFhloSylxQstV_xNTPQQ",
+    ],
+    "think": [
+        "CgACAgIAAxkDAAMoau0ajf3j1kLUBcxOxdPgN2k1lccAAum4AAIWGWhLtKOAhqVH1ZY9BA",
+        "CgACAgIAAxkDAAMpau0ajlsxlEsD_ztr5Q4uhXCCww8AAuq4AAIWGWhLQ8IWyrZuskw9BA",
+        "CgACAgIAAxkDAAMqau0akENFEjTh-3QJQFqHZhu0x80AAuu4AAIWGWhLxAUh3XtJR0I9BA",
+        "CgACAgIAAxkDAAMrau0akRHi_9Mq3L0q4cDqznUOHsgAAuy4AAIWGWhLq3M90V4MAZU9BA",
+        "CgACAgIAAxkDAAMsau0akl3FmMKW_ky7Rhbstksp_5kAAu24AAIWGWhLYIMTvru9TRg9BA",
+        "CgACAgIAAxkDAAMtau0ak0nhOGka5EUXn49aVJkIKU0AAu64AAIWGWhLSyrfy1K7xlI9BA",
+        "CgACAgIAAxkDAAMuau0alUcdqLstPWoCDZ9ijnGbeFcAAu-4AAIWGWhLR2jHwHr9S7g9BA",
+    ],
+    "shock": [
+        "CgACAgIAAxkDAAMvau0alsFSQ4ptrzoGaGZufcgAAcGWAALwuAACFhloS63MWN0VMz_FPQQ",
+        "CgACAgIAAxkDAAMwau0al-JBv1cR9O8lI7xdHqUMTK4AAvG4AAIWGWhLhg7g16eSdnA9BA",
+        "CgACAgIAAxkDAAMxau0amLWE8hfT_Q_S4jhqeI3mWj0AAvK4AAIWGWhLxxGP96Uiia09BA",
+        "CgACAgIAAxkDAAMyau0amfA6cumHC3sfvbSqEJxHWB0AAvO4AAIWGWhLZctZR1VWDz49BA",
+        "CgACAgIAAxkDAAMzau0amucEQ5sNfv6kca75hKvK7VEAAvS4AAIWGWhLBacMvLxNVrM9BA",
+        "CgACAgIAAxkDAAM0au0amxI4vTIg31i-4fVyjEuunXYAAvW4AAIWGWhLUq14IveOggQ9BA",
+        "CgACAgIAAxkDAAM1au0anD6KriyVshrhNtgI36g7oWgAAva4AAIWGWhLEWmq8U1oK6g9BA",
+    ],
+    "love": [
+        "CgACAgIAAxkDAAM2au0anY8kRjjyQS1Gojb98GhRhpoAAve4AAIWGWhL24UclnoeYwY9BA",
+        "CgACAgIAAxkDAAM3au0anhyLCmLBeyGhMDhcXSjEUEkAAvi4AAIWGWhLN4TLtU5VkRY9BA",
+        "CgACAgIAAxkDAAM4au0an5aQBLMWo95Y0uLMm0v99hYAAvm4AAIWGWhLiu_SFew1jQ09BA",
+        "CgACAgIAAxkDAAM5au0aoJHX7fc7LDUXJCh6OmFZCqIAAvq4AAIWGWhL0FNeI80hy0Y9BA",
+        "CgACAgIAAxkDAAM6au0aoSV_ysB8toEDUak1g-ivikMAAvu4AAIWGWhLjBg_7esZNYo9BA",
+        "CgACAgIAAxkDAAM7au0aotKumgdyIIIEsMqBySP_G9YAAvy4AAIWGWhLXTPPQfdDAYk9BA",
+        "CgACAgIAAxkDAAM8au0ao31t97zXbcLGQuXZMguVKPYAAv24AAIWGWhLMsxQWKUAAXbKPQQ",
+    ],
+    "party": [
+        "CgACAgIAAxkDAAM9au0apIrcCV8kIadsGSnxewVzlP4AAv64AAIWGWhL7Bv63ztGP7Q9BA",
+        "CgACAgIAAxkDAAM-au0apSJpRc19iYYC1PV-RxRTQd8AAv-4AAIWGWhLCSClEuyIJn09BA",
+        "CgACAgIAAxkDAAM_au0aplYiBxQaeBB9v28yWEWLu9IAA7kAAhYZaEufQ_7F62p9ST0E",
+        "CgACAgIAAxkDAANAau0ap9gRlQ-ZZFRC84RJD5gCjLUAAgG5AAIWGWhLvHcKgl31UK89BA",
+        "CgACAgIAAxkDAANBau0aqY7Xa07ZeDJJkRX1SieAeyUAAgK5AAIWGWhLa59EkBe6wnA9BA",
+        "CgACAgIAAxkDAANCau0aqmV6G6aarzNtU58D9n9zSQ0AAgO5AAIWGWhLmoHAlZ7dyl49BA",
+        "CgACAgIAAxkDAANDau0aq0vy1_1omS65L27-Ik5-H_YAAgS5AAIWGWhLdUxD6xKNDsY9BA",
+    ],
+    "cat": [
+        "CgACAgIAAxkDAANEau0arLtWx46T0ufA1broL1fW7WcAAgW5AAIWGWhLBrV5wQRJz2o9BA",
+        "CgACAgIAAxkDAANFau0arVhI4EOqtJHIVMEb7OA0TbwAAga5AAIWGWhLsTaqL_8tc1M9BA",
+        "CgACAgIAAxkDAANGau0arnAgO36FNVOeT2qb_VI-Ni0AAge5AAIWGWhLx3RJ8f7zZsQ9BA",
+        "CgACAgIAAxkDAANHau0asPF36iFarISSm_qRjp8yGJgAAgi5AAIWGWhL5CwLMjkmGXE9BA",
+        "CgACAgIAAxkDAANIau0asdWRiata_tLTj9oMqywR4gADCbkAAhYZaEsHpn348bfVMj0E",
+        "CgACAgIAAxkDAANJau0asoiIE2cJdRHYzPhw-1RFunQAAgq5AAIWGWhLN567GMWVcnY9BA",
+        "CgACAgIAAxkDAANKau0ask8yvRvqSKBXgYiz9KLvBeAAAgu5AAIWGWhLVWUXkWP81Hw9BA",
+    ],
+    "fox": [
+        "CgACAgIAAxkDAANLau0as28Z7UTalnozf0JJbrkd2xwAAgy5AAIWGWhLWrezWep59e09BA",
+        "CgACAgIAAxkDAANMau0atHxoJl_-L-7dzUWHwhmpIBcAAg25AAIWGWhL5z-77TEnPO09BA",
+        "CgACAgIAAxkDAANNau0atmuU6hy35AABfwY-Efj8lF8DAAIOuQACFhloSxS1PEy73yVkPQQ",
+        "CgACAgIAAxkDAANOau0at-tBtsWIixejtl-Ys8R4zKwAAg-5AAIWGWhLKTehZId0mp89BA",
+        "CgACAgIAAxkDAANPau0auO5KUeKazcDJ-LKDKiFvzUkAAhC5AAIWGWhLxI8jx7VxZSs9BA",
+        "CgACAgIAAxkDAANQau0auXF0qZwbllNYXkrO7-gPrvIAAhG5AAIWGWhL8S0K2_JRA5s9BA",
+        "CgACAgIAAxkDAANRau0auqATXN3FV0eVBSBTL4YHDIAAAhK5AAIWGWhLJvv6XQgjaXA9BA",
+    ],
+    "hype": [
+        "CgACAgIAAxkDAANSau0au84LuNLooUJclMENSGxiJnQAAhO5AAIWGWhL47b27H24Z0Q9BA",
+        "CgACAgIAAxkDAANTau0avOunoSdZn8SCHWZ4RIXTmiwAAhS5AAIWGWhL3Re_IIYzczo9BA",
+        "CgACAgIAAxkDAANUau0avYo29tThK0-_9EwEfVx_hgADFbkAAhYZaEsKKunsFi4Vej0E",
+        "CgACAgIAAxkDAANWau0awDaf3Xdohg3D6ETbbMGo1N8AAhe5AAIWGWhLAe1ehmPlyv09BA",
+        "CgACAgIAAxkDAANYau0awn0LqaIKw9-BhquloVVD58gAAhm5AAIWGWhLwlmwB6XHxXo9BA",
+    ],
+}
+
+ALL_GIFS: List[str] = [fid for ids in GIFS_BY_MOOD.values() for fid in ids]
+

@@ -1,0 +1,28 @@
+# секреты — никогда в репозиторий
+config.json
+config.local.json
+.env
+.env.*
+
+# файлы с ключами (в том числе пачки ElevenLabs)
+*keys*.txt
+*keys*.md
+keys.txt
+
+# рантайм и данные
+data/
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+tmp_upload/
+logs/
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
