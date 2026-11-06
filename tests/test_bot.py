@@ -751,6 +751,58 @@ class TestTopicGuardBotFlow(unittest.TestCase):
         # В ветке остался короткий отказ
         self.assertTrue(any("не оставляю" in str(m.get("text")) for m in self.api.sent_messages))
 
+    def test_video_with_thumbnail_goes_to_vision(self) -> None:
+        chat_id = -1001999888777
+        self.bot.config.ai_enabled = True
+        self.bot.config.ai_api_key = "test_key"
+        self.bot.config.ai_api_url = "http://fake-api"
+        self.bot.vision = unittest.mock.MagicMock()
+        seen = []
+        orig = self.bot._handle_vision_reaction_and_reply
+        self.bot._handle_vision_reaction_and_reply = lambda *a, **k: seen.append(a)
+        try:
+            self.bot.handle_update({
+                "update_id": 960,
+                "message": {
+                    "message_id": 961,
+                    "chat": {"id": chat_id, "type": "supergroup", "title": "Приватка"},
+                    "from": {"id": 999, "is_bot": False, "first_name": "Owner"},
+                    "text": "киря оцени гол",
+                    "video": {"file_id": "vid1", "thumbnail": {"file_id": "vthumb"}},
+                },
+            })
+            import time as _t
+            _t.sleep(0.3)
+        finally:
+            self.bot._handle_vision_reaction_and_reply = orig
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(seen[0][5], "vthumb")
+
+    def test_video_without_thumbnail_recorded_in_memory(self) -> None:
+        chat_id = -1001999888777
+        self.bot.config.ai_enabled = True
+        self.bot.config.ai_api_key = "test_key"
+        self.bot.config.ai_api_url = "http://fake-api"
+        self.bot._chat_limiter.per_user_sec = 0.0
+        import bot.app
+        orig = bot.app.generate_reply
+        try:
+            bot.app.generate_reply = lambda *a, **k: "видел гол, красава"
+            self.bot.handle_update({
+                "update_id": 962,
+                "message": {
+                    "message_id": 963,
+                    "chat": {"id": chat_id, "type": "supergroup", "title": "Приватка"},
+                    "from": {"id": 999, "is_bot": False, "first_name": "Owner"},
+                    "text": "киря оцени гол",
+                    "video": {"file_id": "vid2", "duration": 12},
+                },
+            })
+        finally:
+            bot.app.generate_reply = orig
+        rows = self.store.get_memory(chat_id, None, limit=10)
+        self.assertTrue(any("[прислал видео]" in r["content"] for r in rows))
+
     def test_reply_to_gif_with_question_answers_text(self) -> None:
         chat_id = -1001999888777
         self.bot.config.ai_enabled = True

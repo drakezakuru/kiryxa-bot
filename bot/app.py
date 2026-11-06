@@ -806,6 +806,37 @@ class TopicGuardBot:
             logger.warning("Persona pool rejected job, running inline: %s", e)
             worker()
 
+    @staticmethod
+    def _media_from_message(msg: Dict[str, Any]) -> Tuple[Optional[str], str, str]:
+        """Достать из сообщения картинку для Vision.
+
+        Возвращает (file_id, mime, label). Для видео берём его thumbnail —
+        Gemini не умеет смотреть видео целиком в этом формате, но кадр даёт
+        представление о сцене. label нужен для записи в память.
+        """
+        photos = msg.get("photo")
+        if isinstance(photos, list) and photos:
+            return photos[-1].get("file_id"), "image/jpeg", "фото"
+        anim = msg.get("animation")
+        if isinstance(anim, dict):
+            thumb = anim.get("thumbnail")
+            fid = (thumb.get("file_id") if isinstance(thumb, dict) else None) or anim.get("file_id")
+            return fid, ("image/jpeg" if isinstance(thumb, dict) else "video/mp4"), "гифку"
+        video = msg.get("video") or msg.get("video_note")
+        if isinstance(video, dict):
+            thumb = video.get("thumbnail")
+            if isinstance(thumb, dict) and thumb.get("file_id"):
+                return thumb["file_id"], "image/jpeg", "видео"
+            return None, "video/mp4", "видео"
+        doc = msg.get("document")
+        if isinstance(doc, dict):
+            mime = str(doc.get("mime_type") or "").lower()
+            if mime.startswith("image/"):
+                return doc.get("file_id"), mime, "картинку"
+            if mime.startswith("video/"):
+                return None, mime, "видео"
+        return None, "image/jpeg", ""
+
     def _maybe_reply_in_general(
         self,
         message: Dict[str, Any],
@@ -893,45 +924,13 @@ class TopicGuardBot:
             speakers.append(user_id)
         msg_id = int(message.get("message_id", 0)) or None
 
-        # Check if message contains photo, animation (GIF), or image document
-        file_id_to_see = None
-        media_mime = "image/jpeg"
-        photo_arr = message.get("photo")
-        if isinstance(photo_arr, list) and photo_arr:
-            file_id_to_see = photo_arr[-1].get("file_id")
-            media_mime = "image/jpeg"
-        elif isinstance(message.get("animation"), dict):
-            anim = message["animation"]
-            thumb = anim.get("thumbnail")
-            file_id_to_see = (thumb.get("file_id") if isinstance(thumb, dict) else None) or anim.get("file_id")
-            media_mime = "image/jpeg" if (thumb and isinstance(thumb, dict)) else "video/mp4"
-        elif isinstance(message.get("document"), dict):
-            doc = message["document"]
-            mime = str(doc.get("mime_type") or "").lower()
-            if mime.startswith("image/"):
-                file_id_to_see = doc.get("file_id")
-                media_mime = mime
+        # В сообщении может быть фото, гифка, видео или документ-картинка
+        file_id_to_see, media_mime, media_label = self._media_from_message(message)
 
         # Картинка в replied-сообщении. Если у текущего сообщения есть текст —
         # это вопрос по картинке: отвечаем текстом, а не комментируем её.
-        reply_file_id = None
-        reply_media_mime = "image/jpeg"
-        if not file_id_to_see and isinstance(reply_msg, dict):
-            r_photos = reply_msg.get("photo")
-            if isinstance(r_photos, list) and r_photos:
-                reply_file_id = r_photos[-1].get("file_id")
-            elif isinstance(reply_msg.get("animation"), dict):
-                r_anim = reply_msg["animation"]
-                r_thumb = r_anim.get("thumbnail")
-                reply_file_id = (r_thumb.get("file_id") if isinstance(r_thumb, dict) else None) or r_anim.get("file_id")
-                reply_media_mime = "image/jpeg" if (r_thumb and isinstance(r_thumb, dict)) else "video/mp4"
-            elif isinstance(reply_msg.get("document"), dict):
-                r_doc = reply_msg["document"]
-                r_mime = str(r_doc.get("mime_type") or "").lower()
-                if r_mime.startswith("image/"):
-                    reply_file_id = r_doc.get("file_id")
-                    reply_media_mime = r_mime
-        # Без текста (просто ответ гифкой/фото) — можно комментировать картинку
+        reply_file_id, reply_media_mime, _reply_label = self._media_from_message(reply_msg)
+        # Без текста (просто ответ гифкой/фото/видео) — можно комментировать кадр
         if not file_id_to_see and reply_file_id and not text:
             file_id_to_see, media_mime = reply_file_id, reply_media_mime
 
@@ -941,7 +940,7 @@ class TopicGuardBot:
             # если Vision успешно отправил комментарий, и картинка терялась из истории.
             self.store.add_memory(
                 chat_id, mem_tid, "user", author_name,
-                f"[прислал картинку: {text or 'без текста'}]",
+                f"[прислал {media_label or 'картинку'}: {text or 'без текста'}]",
             )
             threading.Thread(
                 target=self._handle_vision_reaction_and_reply,
@@ -966,6 +965,11 @@ class TopicGuardBot:
             return
 
         if not text:
+            # Медиа без подписи и без кадра (видео без thumbnail) — хотя бы в память
+            if media_label:
+                self.store.add_memory(
+                    chat_id, mem_tid, "user", author_name, f"[прислал {media_label}]"
+                )
             return
 
         # Extract reply quote context if message is a reply to another post
@@ -989,6 +993,9 @@ class TopicGuardBot:
 
         # Record incoming message in chat memory so Kiryxa never misses context
         mem_entry = f"{reply_context} {text}".strip() if reply_context else text
+        if media_label:
+            # Видео без кадра (или выключенный Vision): хотя бы фиксируем факт медиа
+            mem_entry = f"[прислал {media_label}] {mem_entry}".strip()
         self.store.add_memory(chat_id, mem_tid, "user", author_name, mem_entry)
 
         if not is_addressed_or_reply:
