@@ -807,35 +807,40 @@ class TopicGuardBot:
             worker()
 
     @staticmethod
-    def _media_from_message(msg: Dict[str, Any]) -> Tuple[Optional[str], str, str]:
-        """Достать из сообщения картинку для Vision.
+    def _media_from_message(msg: Dict[str, Any]) -> Tuple[Optional[str], str, str, Optional[str]]:
+        """Достать из сообщения медиа для Vision.
 
-        Возвращает (file_id, mime, label). Для видео берём его thumbnail —
-        Gemini не умеет смотреть видео целиком в этом формате, но кадр даёт
-        представление о сцене. label нужен для записи в память.
+        Возвращает (file_id, mime, label, fallback_id). Для видео и гифок отдаём
+        сам файл — Gemini умеет смотреть видео целиком; thumbnail остаётся
+        запасным вариантом, если файл слишком большой или не скачался.
         """
         photos = msg.get("photo")
         if isinstance(photos, list) and photos:
-            return photos[-1].get("file_id"), "image/jpeg", "фото"
+            return photos[-1].get("file_id"), "image/jpeg", "фото", None
         anim = msg.get("animation")
         if isinstance(anim, dict):
             thumb = anim.get("thumbnail")
-            fid = (thumb.get("file_id") if isinstance(thumb, dict) else None) or anim.get("file_id")
-            return fid, ("image/jpeg" if isinstance(thumb, dict) else "video/mp4"), "гифку"
+            thumb_id = thumb.get("file_id") if isinstance(thumb, dict) else None
+            fid = anim.get("file_id") or thumb_id
+            mime = "video/mp4" if anim.get("file_id") else "image/jpeg"
+            return fid, mime, "гифку", thumb_id
         video = msg.get("video") or msg.get("video_note")
         if isinstance(video, dict):
             thumb = video.get("thumbnail")
-            if isinstance(thumb, dict) and thumb.get("file_id"):
-                return thumb["file_id"], "image/jpeg", "видео"
-            return None, "video/mp4", "видео"
+            thumb_id = thumb.get("file_id") if isinstance(thumb, dict) else None
+            fid = video.get("file_id") or thumb_id
+            mime = str(video.get("mime_type") or "video/mp4").lower()
+            return fid, mime, "видео", thumb_id
         doc = msg.get("document")
         if isinstance(doc, dict):
             mime = str(doc.get("mime_type") or "").lower()
             if mime.startswith("image/"):
-                return doc.get("file_id"), mime, "картинку"
+                return doc.get("file_id"), mime, "картинку", None
             if mime.startswith("video/"):
-                return None, mime, "видео"
-        return None, "image/jpeg", ""
+                thumb = doc.get("thumbnail")
+                thumb_id = thumb.get("file_id") if isinstance(thumb, dict) else None
+                return doc.get("file_id"), mime, "видео", thumb_id
+        return None, "image/jpeg", "", None
 
     def _maybe_reply_in_general(
         self,
@@ -925,11 +930,11 @@ class TopicGuardBot:
         msg_id = int(message.get("message_id", 0)) or None
 
         # В сообщении может быть фото, гифка, видео или документ-картинка
-        file_id_to_see, media_mime, media_label = self._media_from_message(message)
+        file_id_to_see, media_mime, media_label, media_fallback = self._media_from_message(message)
 
         # Картинка в replied-сообщении. Если у текущего сообщения есть текст —
         # это вопрос по картинке: отвечаем текстом, а не комментируем её.
-        reply_file_id, reply_media_mime, _reply_label = self._media_from_message(reply_msg)
+        reply_file_id, reply_media_mime, _reply_label, _reply_fallback = self._media_from_message(reply_msg)
         # Без текста (просто ответ гифкой/фото/видео) — можно комментировать кадр
         if not file_id_to_see and reply_file_id and not text:
             file_id_to_see, media_mime = reply_file_id, reply_media_mime
@@ -953,6 +958,7 @@ class TopicGuardBot:
                     file_id_to_see,
                     text,
                     media_mime,
+                    media_fallback,
                     author_name,
                     diag_key,
                     user_id,
@@ -1095,8 +1101,9 @@ class TopicGuardBot:
             try:
                 img_bytes = self.api.get_file_bytes(reply_file_id)
                 if img_bytes:
+                    ctx_timeout = 45.0 if str(reply_media_mime).startswith("video") else 12.0
                     seen = self.vision.analyze_image(
-                        img_bytes, caption="", mime=reply_media_mime, timeout=12.0
+                        img_bytes, caption="", mime=reply_media_mime, timeout=ctx_timeout
                     )
                     if seen:
                         prompt_with_quote = f"[собеседник отвечает на картинку: {seen[1]}]\n{prompt_with_quote}"
@@ -1600,6 +1607,7 @@ class TopicGuardBot:
         file_id: str,
         caption: str,
         mime: str,
+        fallback_file_id: Optional[str],
         author_name: str,
         diag_key: Tuple[int, Optional[int]],
         user_id: int,
@@ -1613,8 +1621,15 @@ class TopicGuardBot:
         try:
             logger.info("Vision processing image for chat %s msg %s...", chat_id, msg_id)
             img_bytes = self.api.get_file_bytes(file_id)
+            # Видео больше ~18 МБ не тащим в Vision — берём кадр-превью
+            if img_bytes and str(mime).startswith("video") and len(img_bytes) > 18 * 1024 * 1024:
+                logger.info("Video %s too large for vision (%s bytes), using thumbnail", file_id, len(img_bytes))
+                img_bytes = None
+            if not img_bytes and fallback_file_id:
+                img_bytes = self.api.get_file_bytes(fallback_file_id)
+                mime = "image/jpeg"
             if not img_bytes:
-                logger.warning("Could not download image bytes for %s in %s", file_id, chat_id)
+                logger.warning("Could not download media bytes for %s in %s", file_id, chat_id)
                 return
 
             vkey = f"{diag_key[0]}:{diag_key[1]}"
@@ -1624,13 +1639,14 @@ class TopicGuardBot:
             # До двух попыток: если модель повторила недавний комментарий,
             # просим заново, показав ей, что именно повторять нельзя.
             emoji_reaction, comment = "", ""
+            # Видео на холодном мосте может думать дольше минуты
+            is_video = str(mime).startswith("video")
             for attempt in range(2):
                 result = self.vision.analyze_image(
                     img_bytes,
                     caption=caption,
                     mime=mime,
-                    # Мост иногда отвечает 16-20 с: вторая попытка ждёт дольше
-                    timeout=18.0 if attempt == 0 else 25.0,
+                    timeout=(60.0 if attempt == 0 else 90.0) if is_video else (18.0 if attempt == 0 else 25.0),
                     recent=seen + recent_replies(vkey, 3),
                 )
                 if not result:

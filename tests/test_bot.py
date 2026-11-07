@@ -567,7 +567,7 @@ class TestTopicGuardBotFlow(unittest.TestCase):
         def send(msg_id: int, user_id: int) -> None:
             self.bot._handle_vision_reaction_and_reply(
                 message={}, chat_id=chat_id, tid=tid, mem_tid=tid, msg_id=msg_id,
-                file_id="gif1", caption="", mime="image/gif",
+                file_id="gif1", caption="", mime="image/gif", fallback_file_id=None,
                 author_name="Херсов", diag_key=(chat_id, tid),
                 user_id=user_id, now=1000.0, is_addressed_or_reply=True,
             )
@@ -601,7 +601,7 @@ class TestTopicGuardBotFlow(unittest.TestCase):
         for msg_id in (1, 2):
             self.bot._handle_vision_reaction_and_reply(
                 message={}, chat_id=chat_id, tid=tid, mem_tid=tid, msg_id=msg_id,
-                file_id="gif1", caption="", mime="image/gif",
+                file_id="gif1", caption="", mime="image/gif", fallback_file_id=None,
                 author_name="Херсов", diag_key=(chat_id, tid),
                 user_id=700 + msg_id, now=1000.0, is_addressed_or_reply=True,
             )
@@ -776,10 +776,14 @@ class TestTopicGuardBotFlow(unittest.TestCase):
         finally:
             self.bot._handle_vision_reaction_and_reply = orig
         self.assertEqual(len(seen), 1)
-        self.assertEqual(seen[0][5], "vthumb")
+        # Теперь в Vision уходит сам видеофайл, thumbnail — запасной
+        self.assertEqual(seen[0][5], "vid1")
+        self.assertEqual(seen[0][8], "vthumb")
 
     def test_video_without_thumbnail_recorded_in_memory(self) -> None:
         chat_id = -1001999888777
+        # Vision выключен: видео без кадра должно хотя бы попасть в память
+        self.bot.vision = None
         self.bot.config.ai_enabled = True
         self.bot.config.ai_api_key = "test_key"
         self.bot.config.ai_api_url = "http://fake-api"
