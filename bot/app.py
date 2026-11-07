@@ -1101,12 +1101,13 @@ class TopicGuardBot:
             try:
                 img_bytes = self.api.get_file_bytes(reply_file_id)
                 if img_bytes:
-                    ctx_timeout = 45.0 if str(reply_media_mime).startswith("video") else 12.0
-                    seen = self.vision.analyze_image(
-                        img_bytes, caption="", mime=reply_media_mime, timeout=ctx_timeout
+                    ctx_timeout = 45.0 if str(reply_media_mime).startswith("video") else 20.0
+                    # Именно описание, а не шутка: модель должна отвечать по факту
+                    desc = self.vision.describe(
+                        img_bytes, mime=reply_media_mime, timeout=ctx_timeout
                     )
-                    if seen:
-                        prompt_with_quote = f"[собеседник отвечает на картинку: {seen[1]}]\n{prompt_with_quote}"
+                    if desc:
+                        prompt_with_quote = f"[что на картинке: {desc}]\n{prompt_with_quote}"
             except Exception as e:
                 logger.debug("Vision context for reply failed: %s", e)
 

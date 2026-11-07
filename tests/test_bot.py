@@ -814,7 +814,7 @@ class TestTopicGuardBotFlow(unittest.TestCase):
         self.bot.config.ai_api_url = "http://fake-api"
         self.bot._chat_limiter.per_user_sec = 0.0
         self.bot.vision = unittest.mock.MagicMock()
-        self.bot.vision.analyze_image.return_value = ("🔥", "кот в наушниках сидит на столе")
+        self.bot.vision.describe.return_value = "кот в наушниках сидит на столе"
         self.api.sent_messages.clear()
         calls = []
         vision_calls = []

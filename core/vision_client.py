@@ -11,6 +11,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("topic_guard.vision")
 
+DESCRIBE_SYSTEM_PROMPT = """Ты точно описываешь изображения. Никакой ролевой игры, эмоций и оценок.
+Опиши, что на изображении:
+- если это скриншот — что за интерфейс/приложение, какие видны диалоги, текст, кнопки, заголовки;
+- если фото или видео — кто/что в кадре, что происходит, обстановка.
+Только факты, 2-4 предложения. Не выдумывай того, чего не видно."""
+
 ALLOWED_REACTIONS = {
     "🔥", "👍", "👎", "❤️", "😂", "🗿", "😱", "💩", "🤡", "🤯",
     "🤨", "😴", "😭", "🍌", "🌭", "👀", "⚡", "🎉", "💅", "👾",
@@ -143,4 +149,48 @@ class VisionClient:
             return reaction, comment
         except Exception as e:
             logger.debug("Vision analysis error: %s", e)
+            return None
+
+
+    def describe(self, media_bytes: bytes, mime: str = "image/jpeg", timeout: float = 20.0) -> Optional[str]:
+        """Нейтральное описание картинки/видео — для контекста, а не для шутки."""
+        if not media_bytes or not self.api_key:
+            return None
+        b64 = base64.b64encode(media_bytes).decode("ascii")
+        data_uri = f"data:{mime};base64,{b64}"
+        kind = "видео" if str(mime).startswith("video") else "изображении"
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": DESCRIBE_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"Опиши, что на {kind}."},
+                        {"type": "image_url", "image_url": {"url": data_uri}},
+                    ],
+                },
+            ],
+            "max_tokens": 260,
+            "temperature": 0.2,
+        }
+        req = urllib.request.Request(
+            f"{self.base_url}/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "TopicGuardBot/1.0",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            text = str(
+                (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+            ).strip()
+            return text or None
+        except Exception as e:
+            logger.debug("Vision describe error: %s", e)
             return None
