@@ -102,13 +102,13 @@ HYPE_RE = re.compile(
     r"|🔥{2,}|🎉{2,})"
 )
 # A GIF must not land more often than this in one chat.
-GIF_COOLDOWN_SEC = 90.0
-STICKER_COOLDOWN_SEC = 25.0
+GIF_COOLDOWN_SEC = 180.0
+STICKER_COOLDOWN_SEC = 60.0
 # Как часто вместо библиотеки отдавать то, что бот «стащил» из чата
 LEARNED_STICKER_CHANCE = 0.5
-LEARNED_GIF_CHANCE = 0.55
+LEARNED_GIF_CHANCE = 0.4
 # Доля ответов без эмоции, к которым всё равно цепляется гифка
-RANDOM_GIF_CHANCE = 0.15
+RANDOM_GIF_CHANCE = 0.05
 
 # Ограничения на память и файл: старые записи вытесняются первыми.
 MAX_BUCKET_SIZE = 300      # записей на один эмодзи-бакет
@@ -695,12 +695,12 @@ class MediaBank:
         return ""
 
     def maybe_reaction(
-        self, user_text: str, reply_text: str, chat_key: str = "", chance: float = 0.45
+        self, user_text: str, reply_text: str, chat_key: str = "", chance: float = 0.22
     ) -> Tuple[Optional[str], Optional[str]]:
         """Реакция без тега от модели.
 
         Приоритет: эмоция -> гифка (laugh/hype), иначе 50/50 стикер или гифка.
-        Совсем без эмоции тоже иногда кидаем случайную гифку — 15% ответов,
+        Совсем без эмоции тоже иногда кидаем случайную гифку — 5% ответов,
         чтобы бот не молчал картинками в скучных темах.
 
         ``chance`` is the probability of reacting at all when a mood is found.
@@ -711,7 +711,7 @@ class MediaBank:
             try:
                 chance_value = float(chance)
             except (TypeError, ValueError):
-                chance_value = 0.45
+                chance_value = 0.22
             if chance_value <= 0.0:
                 return None, None
             chance_value = min(chance_value, 1.0)
