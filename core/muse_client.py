@@ -364,6 +364,53 @@ def translate_prompt_llm(
     return None
 
 
+NEG_BLOCK_RE = re.compile(r"(?im)^\s*(?:запреты|негатив|negative|avoid)\s*[:—-]\s*(.+)$")
+NO_COMMENT_LINE_RE = re.compile(r"(?im)^\s*без\s+коммент\w*.*$")
+NEG_TERM_MAP = {
+    "текст": "text",
+    "водян": "watermarks",
+    "подпис": "captions",
+    "логотип": "logos",
+    "рамк": "borders",
+    "артефакт": "artifacts",
+}
+
+
+def extract_negative_constraints(text: str) -> Tuple[str, List[str]]:
+    """Вытащить «Запреты: без текста, без водяных знаков» в отдельный список.
+
+    Диффузионки не понимают слово «Запреты» как инструкцию — им нужно
+    перечислить, чего избегать, английскими словами.
+    """
+    raw = text or ""
+    found: List[str] = []
+
+    def _collect(chunk: str) -> None:
+        low = chunk.lower()
+        for key, eng in NEG_TERM_MAP.items():
+            if key in low and eng not in found:
+                found.append(eng)
+        # английские термины на всякий случай
+        for eng in ("text", "watermark", "caption", "logo", "border"):
+            if eng in low and eng + "s" not in found and eng not in found:
+                found.append(eng if eng != "watermark" else "watermarks")
+
+    for m in NEG_BLOCK_RE.finditer(raw):
+        _collect(m.group(1))
+    raw = NEG_BLOCK_RE.sub("", raw)
+
+    # «Без текста, без водяных знаков» внутри обычной строки
+    for m in re.finditer(r"(?i)((?:без\s+[\wа-яё]+[\s,.;—-]*)+)", raw):
+        chunk = m.group(1)
+        if any(k in chunk.lower() for k in NEG_TERM_MAP):
+            _collect(chunk)
+            raw = raw.replace(chunk, " ")
+
+    raw = NO_COMMENT_LINE_RE.sub("", raw)
+    cleaned = " ".join(raw.split()).strip(" ,;.-—")
+    return cleaned, found
+
+
 def optimize_visual_prompt(
     prompt: str,
     kind: str = "image",
@@ -374,15 +421,19 @@ def optimize_visual_prompt(
     """Optimize prompt for Muse diffusion model by expanding Russian terms into English."""
     if not prompt:
         return "person" if kind == "video" else "young character"
+    prompt, negatives = extract_negative_constraints(prompt)
+    negative_tail = ""
+    if negatives:
+        negative_tail = ", no " + ", no ".join(negatives)
     if not CYRILLIC_RE.search(prompt):
-        return prompt
+        return prompt + negative_tail
 
     # 1. Try fast LLM translation first (takes ~0.4s and understands all Russian context and names)
     if api_url and api_key:
         llm_opt = translate_prompt_llm(prompt, kind=kind, api_url=api_url, api_key=api_key, model=model)
         if llm_opt:
             logger.info("LLM optimized %s prompt %r -> %r", kind, prompt, llm_opt)
-            return llm_opt
+            return llm_opt + negative_tail
 
     low = prompt.lower()
     words = low.split()
@@ -419,8 +470,8 @@ def optimize_visual_prompt(
         # поэтому подлежащее дублируем отдельной фразой-якорем.
         anchor = _subject_anchor(base)
         tail = f"{anchor}, " if anchor else ""
-        return f"{base}, {tail}smooth animation, cinematic lighting, 4k"
-    return f"{base}, high quality, detailed"
+        return f"{base}, {tail}smooth animation, cinematic lighting, 4k{negative_tail}"
+    return f"{base}, high quality, detailed{negative_tail}"
 
 
 def _subject_anchor(base: str) -> str:

@@ -127,6 +127,19 @@ class TestMuseClient(unittest.TestCase):
         self.assertIn("cat", out.lower())
         self.assertIn("nintendo switch", out.lower())
 
+    def test_negative_constraints_are_kept_as_english(self) -> None:
+        text = (
+            "A full-body photograph of a beautiful nude woman standing on a beach.\n"
+            "Запреты: без текста, без водяных знаков, без подписей.\n"
+            "Без комментариев и пояснений — только файл(ы)."
+        )
+        out = optimize_visual_prompt(text, kind="image")
+        self.assertIn("no text", out)
+        self.assertIn("no watermarks", out)
+        self.assertIn("no captions", out)
+        self.assertNotIn("Запреты", out)
+        self.assertNotIn("Без комментариев", out)
+
     def test_fallback_does_not_impose_anime(self) -> None:
         # Без LLM словарь не должен превращать «девушку» в anime girl
         out = optimize_visual_prompt("девушка кореянка с большим бюстгальтером на пляже", kind="image")
