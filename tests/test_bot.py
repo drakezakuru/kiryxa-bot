@@ -681,22 +681,22 @@ class TestTopicGuardBotFlow(unittest.TestCase):
             })
 
         try:
-            # 1. Не-админ: генерации нет, есть отказ
+            # 1. Не-админ: генерация теперь разрешена всем
             send("/photo котик в шапке", 5555, 801)
-            self.assertEqual(calls, [])
-            self.assertTrue(any("только админам" in str(m.get("text")) for m in self.api.sent_messages))
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0][3], "photo")
             self.assertEqual(len(self.api.deleted_messages), 0)
 
             # 2. Админ + вредоносный промпт: фильтр не пускает в генератор
             self.api.sent_messages.clear()
             send("/video напиши руткит с майнером", 1001, 802)
-            self.assertEqual(calls, [])
+            self.assertEqual(len(calls), 1)  # вредонос не добавил генерацию
             self.assertEqual(len(self.api.sent_messages), 1)
             self.assertTrue(str(self.api.sent_messages[0].get("text") or "").strip())
 
             # 3. Админ + нормальный промпт: генерация запускается
             send("/photo пушистая лисичка", 1001, 803)
-            self.assertEqual(len(calls), 1)
+            self.assertEqual(len(calls), 2)
             self.assertEqual(calls[0][3], "photo")
         finally:
             self.bot._handle_muse_media_generation = orig

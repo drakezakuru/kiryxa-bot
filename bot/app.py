@@ -1072,20 +1072,6 @@ class TopicGuardBot:
                     except Exception as e:
                         logger.warning("Failed to send media refusal: %s", e)
                     return
-                # Генерация платная и с фильтрами — только админы.
-                # Раньше любой участник мог гонять Muse через «киря нарисуй…».
-                if not self.is_user_admin(chat_id, user_id):
-                    try:
-                        self.api.send_message(
-                            chat_id=chat_id,
-                            message_thread_id=tid,
-                            text="🎨 <i>рисуночки только для админов, извини</i>",
-                            parse_mode="HTML",
-                            reply_to_message_id=msg_id,
-                        )
-                    except Exception:
-                        pass
-                    return
                 # Run in detached background thread so polling NEVER freezes!
                 threading.Thread(
                     target=self._handle_muse_media_generation,
@@ -2492,11 +2478,7 @@ class TopicGuardBot:
                     reply_to_message_id=msg_id,
                 )
 
-            # Раньше эта ветка стояла до проверки прав и без фильтров: любой
-            # не-админ мог отправить в платный генератор что угодно, включая CSAM.
-            if not is_admin:
-                _media_err("🎨 Генерация доступна только админам, извини.")
-                return True
+            # Генерация открыта всем, но с фильтрами и лимитером (см. ниже)
             if not self.muse:
                 _media_err("😿 Генерация выключена на этом сервере.")
                 return True
