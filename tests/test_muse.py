@@ -10,7 +10,12 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.muse_client import MuseClient, detect_media_intent, optimize_visual_prompt
+from core.muse_client import (
+    MuseClient,
+    detect_media_intent,
+    extract_video_directives,
+    optimize_visual_prompt,
+)
 
 
 class TestMuseClient(unittest.TestCase):
@@ -42,14 +47,34 @@ class TestMuseClient(unittest.TestCase):
         self.assertEqual(kind, "voice")
         self.assertEqual(prompt, "привет уважаемые гои")
 
-        kind, prompt = detect_media_intent("киря скажи голосовым: владелец лучший")
+        kind, prompt = detect_media_intent("киря скажи голосовым: Дрейк лучший")
         self.assertEqual(kind, "voice")
-        self.assertEqual(prompt, "владелец лучший")
+        self.assertEqual(prompt, "Дрейк лучший")
 
         # Non-media intents
         kind, prompt = detect_media_intent("киря как дела")
         self.assertIsNone(kind)
         self.assertIsNone(prompt)
+
+    def test_video_directives_are_extracted_not_translated(self) -> None:
+        text = (
+            "Anime girl, the character clearly visible in frame, smooth animation, "
+            "cinematic lighting, cute aesthetic, 4k\n"
+            "Звук: тихий фон без слов.\n"
+            "Ровно один короткий клип (~10 с, длину не меняй).\n"
+            "Без комментариев и пояснений — только файл(ы)."
+        )
+        clean, sound, seconds, clips = extract_video_directives(text)
+        self.assertEqual(
+            clean,
+            "Anime girl, the character clearly visible in frame, smooth animation, "
+            "cinematic lighting, cute aesthetic, 4k",
+        )
+        self.assertEqual(sound, "тихий фон без слов")
+        self.assertEqual(seconds, 10)
+        self.assertEqual(clips, 1)
+        # Готовый английский промпт не переводится и не переписывается
+        self.assertEqual(optimize_visual_prompt(clean, kind="video"), clean)
 
     def test_refinement_without_media_word_reuses_last_kind(self) -> None:
         # «Кирюха, сделай нормального гоя а не утку» — это правка прошлого видео,

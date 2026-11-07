@@ -34,7 +34,7 @@ from core.elevenlabs import (
     ElevenLabsClient,
 )
 from core.media_bank import MediaBank
-from core.muse_client import MuseClient, detect_media_intent
+from core.muse_client import MuseClient, detect_media_intent, extract_video_directives
 from core.notes import (
     FOLD_EVERY,
     FOLD_BATCH,
@@ -1512,7 +1512,16 @@ class TopicGuardBot:
                 )
             except Exception:
                 pass
-            video_bytes = self.muse.generate_video(prompt, timeout=180.0)
+            # Инструкции («звук», «один клип ~10 с») — это параметры Muse,
+            # а не часть визуального промпта
+            clean_video_prompt, v_sound, v_seconds, v_clips = extract_video_directives(prompt)
+            video_bytes = self.muse.generate_video(
+                clean_video_prompt or prompt,
+                timeout=180.0,
+                sound=v_sound,
+                seconds=v_seconds,
+                clips=v_clips,
+            )
             if video_bytes:
                 self.store.set_setting("muse.video_retry_after", "0")
                 sent = False
@@ -1520,7 +1529,7 @@ class TopicGuardBot:
                     self.api.send_video(
                         chat_id=chat_id,
                         video=video_bytes,
-                        caption=f"🎬 <i>{html.escape(prompt)}</i>\n\n🐾 <i>фурр-фурр, клип готов!</i>",
+                        caption=f"🎬 <i>{html.escape(clean_video_prompt or prompt)}</i>\n\n🐾 <i>фурр-фурр, клип готов!</i>",
                         message_thread_id=tid,
                         reply_to_message_id=msg_id,
                     )

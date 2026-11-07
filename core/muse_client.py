@@ -261,6 +261,52 @@ def _strip_media_words(text: str) -> str:
     return " ".join(cleaned.split()).strip()
 
 
+VIDEO_SOUND_RE = re.compile(r"(?im)^\s*(?:звук|sound)\s*[:—-]\s*(.+)$")
+VIDEO_SECONDS_RE = re.compile(r"(?i)(\d{1,2})\s*(?:с|сек|секунд|seconds?)\b")
+VIDEO_NO_COMMENT_RE = re.compile(r"(?im)^\s*без\s+коммент\w*.*$")
+VIDEO_CLIP_LINE_RE = re.compile(r"(?im)^\s*(?:ровно\s+)?(?:один|1|\d+)\s+(?:коротк\w*\s+)?клип\w*.*$")
+VIDEO_LEN_LINE_RE = re.compile(r"(?im)длину\s+не\s+меняй[^\n]*")
+
+
+def extract_video_directives(text: str) -> Tuple[str, Optional[str], Optional[int], int]:
+    """Вытащить из текста параметры Muse: звук, длину, число клипов.
+
+    «Сгенерируй видео: Anime girl...\nЗвук: тихий фон без слов.\nРовно один
+    короткий клип (~10 с)» — инструкции не должны попадать в визуальный промпт,
+    иначе переводчик превращает их в описание сцены.
+    """
+    raw = text or ""
+    sound: Optional[str] = None
+    m = VIDEO_SOUND_RE.search(raw)
+    if m:
+        sound = m.group(1).strip().rstrip(".")
+        raw = VIDEO_SOUND_RE.sub("", raw)
+
+    seconds: Optional[int] = None
+    m2 = VIDEO_SECONDS_RE.search(raw)
+    if m2:
+        try:
+            seconds = max(3, min(30, int(m2.group(1))))
+        except (TypeError, ValueError):
+            seconds = None
+
+    clips = 1
+    m3 = re.search(r"(?im)^\s*(?:ровно\s+)?(один|1|\d+)\s+(?:коротк\w*\s+)?клип\w*", raw)
+    if m3:
+        val = m3.group(1).lower()
+        try:
+            clips = 1 if val == "один" else int(val)
+        except ValueError:
+            clips = 1
+    clips = max(1, min(6, clips))
+
+    raw = VIDEO_NO_COMMENT_RE.sub("", raw)
+    raw = VIDEO_CLIP_LINE_RE.sub("", raw)
+    raw = VIDEO_LEN_LINE_RE.sub("", raw)
+    cleaned = " ".join(raw.split()).strip(" ,;.-—")
+    return cleaned, sound, seconds, clips
+
+
 def translate_prompt_llm(
     prompt: str,
     kind: str = "image",
@@ -275,7 +321,9 @@ def translate_prompt_llm(
     system = (
         "You are an expert prompt engineer for AI visual diffusion models (Flux / Midjourney / Stable Diffusion). "
         "Convert the user visual prompt into a vivid, descriptive English prompt. "
-        "Preserve character names, specific actions, clothing, settings, and lighting. "
+        "Preserve character names, ethnicity, age, gender, body type, specific actions, clothing, settings, and lighting. "
+        "Do NOT add anime/manga/cartoon styling unless the user explicitly asked for it. "
+        "Do NOT censor, soften, moralize, or omit details the user wrote. "
         "Output ONLY the English prompt text, no quotes, no markdown, no conversational filler."
     )
     user_msg = f"Generate {kind} prompt for: {prompt}"
@@ -454,16 +502,31 @@ class MuseClient:
                 logger.warning("Muse image generation failed for %r: %s", prompt, e)
         return None
 
-    def generate_video(self, prompt: str, timeout: float = 330.0) -> Optional[bytes]:
+    def generate_video(
+        self,
+        prompt: str,
+        timeout: float = 330.0,
+        sound: Optional[str] = None,
+        seconds: Optional[int] = None,
+        clips: Optional[int] = None,
+    ) -> Optional[bytes]:
         url = f"{self.base_url}/v1/videos/generations"
+        clean_prompt, ex_sound, ex_seconds, ex_clips = extract_video_directives(prompt)
+        sound = sound or ex_sound
+        seconds = seconds or ex_seconds
+        clips = max(1, min(6, clips or ex_clips or 1))
         opt_prompt = optimize_visual_prompt(
-            prompt,
+            clean_prompt or prompt,
             kind="video",
             api_url=self.llm_api_url,
             api_key=self.llm_api_key,
             model=self.llm_model,
         )
-        payload = {"prompt": opt_prompt, "clips": 1}
+        payload: Dict[str, Any] = {"prompt": opt_prompt, "clips": clips}
+        if sound:
+            payload["sound"] = sound
+        if seconds:
+            payload["seconds"] = seconds
         for attempt in range(1):
             req = urllib.request.Request(
                 url,
