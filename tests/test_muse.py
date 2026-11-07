@@ -127,6 +127,15 @@ class TestMuseClient(unittest.TestCase):
         self.assertIn("cat", out.lower())
         self.assertIn("nintendo switch", out.lower())
 
+    def test_fallback_does_not_impose_anime(self) -> None:
+        # Без LLM словарь не должен превращать «девушку» в anime girl
+        out = optimize_visual_prompt("девушка кореянка с большим бюстгальтером на пляже", kind="image")
+        self.assertIn("woman", out.lower())
+        self.assertNotIn("anime", out.lower())
+        out_v = optimize_visual_prompt("девушка на пляже", kind="video")
+        self.assertIn("woman", out_v.lower())
+        self.assertNotIn("anime", out_v.lower())
+
     def test_untranslatable_prompt_is_kept(self) -> None:
         # Если слов совсем нет в словаре — лучше отдать оригинал, чем огрызок
         out = optimize_visual_prompt("загадочнаяхуйня", kind="video")

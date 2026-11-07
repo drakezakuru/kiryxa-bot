@@ -37,8 +37,8 @@ DICTIONARY = {
     "фембой": "femboy",
     "автора": "author boy",
     "автор": "author boy",
-    "андрю": "cute anime boy Andrew with cat ears",
-    "андрюху": "cute anime boy Andrew with cat ears",
+    "андрю": "Andrew",
+    "андрюху": "Andrew",
     "лисичку": "fluffy fox",
     "лисичка": "fluffy fox",
     "лиса": "fox",
@@ -51,10 +51,10 @@ DICTIONARY = {
     "котик": "cute cat",
     "кошка": "cat",
     "кошку": "cat",
-    "девушку": "anime girl",
-    "девушка": "anime girl",
-    "парня": "anime boy",
-    "парень": "anime boy",
+    "девушку": "young woman",
+    "девушка": "young woman",
+    "парня": "young man",
+    "парень": "young man",
     "аниме": "anime style",
     "бежит": "running",
     "танцует": "dancing",
@@ -313,7 +313,7 @@ def translate_prompt_llm(
     api_url: str = "",
     api_key: str = "",
     model: str = "mercury-3",
-    timeout: float = 6.0,
+    timeout: float = 45.0,
 ) -> Optional[str]:
     """Translate and enrich user visual prompt into detailed English Stable Diffusion / Flux prompt via LLM."""
     if not prompt or not api_url or not api_key:
@@ -373,7 +373,7 @@ def optimize_visual_prompt(
 ) -> str:
     """Optimize prompt for Muse diffusion model by expanding Russian terms into English."""
     if not prompt:
-        return "cute fluffy furry femboy character" if kind == "video" else "cute fluffy anime character"
+        return "person" if kind == "video" else "young character"
     if not CYRILLIC_RE.search(prompt):
         return prompt
 
@@ -419,8 +419,8 @@ def optimize_visual_prompt(
         # поэтому подлежащее дублируем отдельной фразой-якорем.
         anchor = _subject_anchor(base)
         tail = f"{anchor}, " if anchor else ""
-        return f"{base}, {tail}smooth animation, cinematic lighting, cute aesthetic, 4k"
-    return f"{base}, high quality, detailed, anime aesthetic"
+        return f"{base}, {tail}smooth animation, cinematic lighting, 4k"
+    return f"{base}, high quality, detailed"
 
 
 def _subject_anchor(base: str) -> str:
