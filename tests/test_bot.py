@@ -751,6 +751,55 @@ class TestTopicGuardBotFlow(unittest.TestCase):
         # В ветке остался короткий отказ
         self.assertTrue(any("не оставляю" in str(m.get("text")) for m in self.api.sent_messages))
 
+    def test_text_mode_when_user_cannot_listen(self) -> None:
+        chat_id = -1001999888777
+        self.bot.config.ai_enabled = True
+        self.bot.config.ai_api_key = "test_key"
+        self.bot.config.ai_api_url = "http://fake-api"
+        self.bot._chat_limiter.per_user_sec = 0.0
+        self.store.set_setting("tts.voice_replies", "1")
+        self.store.set_setting(f"tts.voice_mute_until:{chat_id}", "0")
+        self.bot._speak = lambda text, voice_id=None: b"\x00" * 3000
+        self.api.sent_messages.clear()
+
+        import bot.app
+        orig = bot.app.generate_reply
+        bot.app.generate_reply = lambda *a, **k: "ладно, пишу текстом"
+        try:
+            self.bot.handle_update({
+                "update_id": 970,
+                "message": {
+                    "message_id": 971,
+                    "chat": {"id": chat_id, "type": "supergroup", "title": "Приватка"},
+                    "from": {"id": 999, "is_bot": False, "first_name": "User"},
+                    "text": "Киря я не могу слушать гс, общайся нормально",
+                },
+            })
+        finally:
+            bot.app.generate_reply = orig
+
+        self.assertTrue(self.bot._voice_muted(chat_id))
+        self.assertIn("text", self.api.sent_messages[0])
+        self.assertNotIn("voice_len", self.api.sent_messages[0])
+
+        # Просят обратно голосом — режим снимается
+        self.api.sent_messages.clear()
+        bot.app.generate_reply = lambda *a, **k: "ну ок, говорю"
+        try:
+            self.bot.handle_update({
+                "update_id": 972,
+                "message": {
+                    "message_id": 973,
+                    "chat": {"id": chat_id, "type": "supergroup", "title": "Приватка"},
+                    "from": {"id": 999, "is_bot": False, "first_name": "User"},
+                    "text": "Киря давай голосом",
+                },
+            })
+        finally:
+            bot.app.generate_reply = orig
+        self.assertFalse(self.bot._voice_muted(chat_id))
+        self.assertIn("voice_len", self.api.sent_messages[0])
+
     def test_video_with_thumbnail_goes_to_vision(self) -> None:
         chat_id = -1001999888777
         self.bot.config.ai_enabled = True

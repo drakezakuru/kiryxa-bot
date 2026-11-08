@@ -66,6 +66,16 @@ SILENT_FALLBACKS = (
     "не, я не пропал, просто затупил. повтори",
 )
 
+VOICE_OFF_RE = re.compile(
+    r"(?i)\b(?:не могу слушать|не слушаю|не слушать|без голос\w*|не голосом|"
+    r"без гс|хватит гс|пиши текстом|текстом пиши|общайся нормально|"
+    r"голосов\w* не надо|не надо голос\w*)\b"
+)
+VOICE_ON_RE = re.compile(
+    r"(?i)\b(?:давай голосом|можно голосом|включи голос|говори голосом|озвучь|"
+    r"голосом можно|хочу голосом)\b"
+)
+
 MODE_LABELS: Dict[str, str] = {
     "smart": "🧠 Умный (Ключи + Триал инфа)",
     "keys": "🔑 Только ключи / коды / раздачи",
@@ -865,6 +875,7 @@ class TopicGuardBot:
         user = message.get("from") or {}
         user_id = int(user.get("id", 0))
         username = str(user.get("username") or "")
+        self._note_voice_intent(chat_id, text)
         # Владелец — конкретный человек из конфига, а не любой админ.
         is_drake = self._is_owner(user_id, username)
         author_name = (
@@ -1228,6 +1239,7 @@ class TopicGuardBot:
                 and not sent_media
                 and len(clean_text) <= 600
                 and self._voice_mode_on(chat_id)
+                and not self._voice_muted(chat_id)
             ):
                 audio = self._speak(clean_text)
                 if audio:
@@ -2164,6 +2176,7 @@ class TopicGuardBot:
     # --- Голос ElevenLabs: переключатель в ЛС -------------------------------
     def _handle_dm_dialogue(self, chat_id: int, user_id: int, text: str, author_name: str = "гой") -> None:
         """Обычное сообщение в ЛС: отвечаем как Кирюха, а не рекламной справкой."""
+        self._note_voice_intent(chat_id, text)
         if not (self.config.ai_enabled and self.config.ai_api_key):
             self.api.send_message(chat_id=chat_id, text="😿 мозги сейчас отключены, зайди позже")
             return
@@ -2201,7 +2214,12 @@ class TopicGuardBot:
                 # В ЛС тоже отвечаем голосом, если включён голосовой режим
                 audio = None
                 target = int(self.config.private_chat_id or 0)
-                if target and self._voice_mode_on(target) and len(reply) <= 600:
+                if (
+                    target
+                    and self._voice_mode_on(target)
+                    and not self._voice_muted(chat_id)
+                    and len(reply) <= 600
+                ):
                     audio = self._speak(reply)
                 if audio:
                     try:
@@ -2225,6 +2243,24 @@ class TopicGuardBot:
             "tts.voice_id",
             self.config.elevenlabs_voice_id or DEFAULT_VOICE_ID,
         )
+
+    def _voice_muted(self, chat_id: int) -> bool:
+        """Временный текстовый режим: человек попросил не присылать голосовые."""
+        try:
+            until = float(self.store.get_setting(f"tts.voice_mute_until:{chat_id}", "0"))
+        except Exception:
+            return False
+        return until > time.time()
+
+    def _note_voice_intent(self, chat_id: int, text: str) -> None:
+        """«Не могу слушать гс» → 30 минут текста; «давай голосом» → вернуть."""
+        body = text or ""
+        if VOICE_OFF_RE.search(body):
+            self.store.set_setting(f"tts.voice_mute_until:{chat_id}", str(int(time.time() + 1800)))
+            logger.info("Voice muted for chat %s for 30m (user asked for text)", chat_id)
+        elif VOICE_ON_RE.search(body):
+            self.store.set_setting(f"tts.voice_mute_until:{chat_id}", "0")
+            logger.info("Voice unmuted for chat %s", chat_id)
 
     def _voice_speed(self) -> float:
         try:
