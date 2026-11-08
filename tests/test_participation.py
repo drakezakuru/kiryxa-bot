@@ -11,7 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.coalesce import Coalescer, CoalescePolicy
-from core.participation import SCORE_THRESHOLD, score_message, should_join
+from core.participation import is_low_signal, SCORE_THRESHOLD, score_message, should_join
 
 
 class TestParticipation(unittest.TestCase):
@@ -53,6 +53,16 @@ class TestParticipation(unittest.TestCase):
         )
         self.assertFalse(verdict.reply)
         self.assertEqual(verdict.reason, "chat is busy")
+
+
+class TestLowSignal(unittest.TestCase):
+    def test_acknowledgements_are_low_signal(self) -> None:
+        for text in ("Факти!", "факти", "спс", "👍", "ну да", "Киря факти"):
+            self.assertTrue(is_low_signal(text), text)
+
+    def test_questions_and_normal_text_are_not_low_signal(self) -> None:
+        for text in ("Киря, что думаешь?", "Факти или нет?", "как дела", "Киря", "что по матчу"):
+            self.assertFalse(is_low_signal(text), text)
 
 
 class TestCoalescing(unittest.TestCase):

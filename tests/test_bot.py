@@ -751,6 +751,56 @@ class TestTopicGuardBotFlow(unittest.TestCase):
         # В ветке остался короткий отказ
         self.assertTrue(any("не оставляю" in str(m.get("text")) for m in self.api.sent_messages))
 
+    def test_low_signal_message_can_be_ignored(self) -> None:
+        chat_id = -1001999888777
+        self.bot.config.ai_enabled = True
+        self.bot.config.ai_api_key = "test_key"
+        self.bot.config.ai_api_url = "http://fake-api"
+        self.bot._chat_limiter.per_user_sec = 0.0
+        calls = []
+        import bot.app
+        orig = bot.app.generate_reply
+        bot.app.generate_reply = lambda *a, **k: calls.append(1) or "ответ"
+        try:
+            with unittest.mock.patch("bot.app.random.random", return_value=0.1):
+                self.bot.handle_update({
+                    "update_id": 980,
+                    "message": {
+                        "message_id": 981,
+                        "chat": {"id": chat_id, "type": "supergroup", "title": "Приватка"},
+                        "from": {"id": 999, "is_bot": False, "first_name": "Owner"},
+                        "text": "Киря факти!",
+                    },
+                })
+            self.assertEqual(calls, [])
+
+            with unittest.mock.patch("bot.app.random.random", return_value=0.95):
+                self.bot.handle_update({
+                    "update_id": 982,
+                    "message": {
+                        "message_id": 983,
+                        "chat": {"id": chat_id, "type": "supergroup", "title": "Приватка"},
+                        "from": {"id": 999, "is_bot": False, "first_name": "Owner"},
+                        "text": "Киря факти!",
+                    },
+                })
+            self.assertEqual(len(calls), 1)
+
+            # Вопрос отвечается всегда, даже при «молчаливом» рандоме
+            with unittest.mock.patch("bot.app.random.random", return_value=0.1):
+                self.bot.handle_update({
+                    "update_id": 984,
+                    "message": {
+                        "message_id": 985,
+                        "chat": {"id": chat_id, "type": "supergroup", "title": "Приватка"},
+                        "from": {"id": 999, "is_bot": False, "first_name": "Owner"},
+                        "text": "Киря что думаешь?",
+                    },
+                })
+            self.assertEqual(len(calls), 2)
+        finally:
+            bot.app.generate_reply = orig
+
     def test_text_mode_when_user_cannot_listen(self) -> None:
         chat_id = -1001999888777
         self.bot.config.ai_enabled = True

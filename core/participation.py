@@ -32,6 +32,14 @@ _CLOSING_RE = re.compile(
     r"(?i)^\s*(?:ага|угу|ок|окей|да|нет|понял|поняла|ясно|спс|спасибо|"
     r"благодарю|принял|приняла|lol|lmao|ахах\w*|хаха\w*|ok|okay|yep|nope)\W*$"
 )
+_LOW_SIGNAL_WORDS = {
+    "факти", "факт", "плюс", "согласен", "согласна", "верно", "точно", "жиза",
+    "база", "топ", "класс", "красава", "гуд", "норм", "огонь", "имба",
+    "ага", "угу", "ок", "окей", "да", "нет", "ясно", "понял", "поняла",
+    "спс", "спасибо", "принял", "приняла", "лол", "ахах", "хаха", "позор",
+}
+_EMOJI_ONLY_RE = re.compile(r"^[^\w]+$", re.UNICODE)
+
 _INTEREST_RE = re.compile(
     r"(?i)\b(?:ключ\w*|кред\w*|нейросет\w*|нейронк\w*|модел\w*|апи|api|gpt|claude|gemini|"
     r"deepseek|qwen|kimi|лимит\w*|подписк\w*|триал\w*|халяв\w*|бесплатн\w*|free|"
@@ -53,6 +61,25 @@ class Participation:
     reply: bool
     reason: str
     score: float = 0.0
+
+
+def is_low_signal(text: str) -> bool:
+    """Сообщение не требует ответа: «Факти!», «спс», «👍», «ну да».
+
+    Вопросы и сообщения с медиа сюда не попадают — на них бот отвечает.
+    """
+    body = (text or "").strip()
+    if not body or "?" in body or "？" in body:
+        return False
+    low = body.lower().strip(" !.,;:—-~")
+    if low in _LOW_SIGNAL_WORDS:
+        return True
+    words = re.findall(r"\w+", low, flags=re.UNICODE)
+    if len(words) <= 2 and _EMOJI_ONLY_RE.match(body):
+        return True
+    if len(words) <= 2 and any(w in _LOW_SIGNAL_WORDS for w in words):
+        return True
+    return False
 
 
 def score_message(

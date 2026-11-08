@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from core.classifier import classify_message, classify_topic_name
 from core.coalesce import Coalescer
-from core.participation import should_join
+from core.participation import is_low_signal, should_join
 from core.persona import (
     RateLimiter,
     _sanitize_reply,
@@ -60,6 +60,9 @@ from .tg_api import (
 logger = logging.getLogger("topic_guard.bot")
 
 # Что сказать, если модель промолчала, а ответ нужен
+# На «Факти!», «спс», «👍» бот иногда молчит, даже если это ответ ему
+LOW_SIGNAL_SILENCE = 0.8
+
 SILENT_FALLBACKS = (
     "чёт подвис, повтори ещё раз",
     "у меня тут мысль потерялась, скажи ещё раз?",
@@ -994,6 +997,15 @@ class TopicGuardBot:
                 self.store.add_memory(
                     chat_id, mem_tid, "user", author_name, f"[прислал {media_label}]"
                 )
+            return
+
+        # «Факти!», «спс», «👍» — не повод отвечать каждый раз.
+        # Вопросы («?») сюда не попадают и всегда получают ответ.
+        if called_or_reply and is_low_signal(text) and random.random() < LOW_SIGNAL_SILENCE:
+            logger.info(
+                "Staying silent on low-signal message %s in %s",
+                message.get("message_id"), chat_id,
+            )
             return
 
         # Extract reply quote context if message is a reply to another post
