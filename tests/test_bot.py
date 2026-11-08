@@ -317,7 +317,7 @@ class TestTopicGuardBotFlow(unittest.TestCase):
                         "text": txt,
                     },
                 })
-            self.bot._persona_pool.shutdown(wait=True)
+            self.bot.flush_persona()
         finally:
             bot.app.generate_reply = orig
 

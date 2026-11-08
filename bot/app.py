@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import html
 import logging
+import queue
 import random
+import re
 import subprocess
 import threading
 import time
@@ -178,8 +180,8 @@ class TopicGuardBot:
         self._last_media: Dict[str, Tuple[str, float, str]] = {}
         # Медленные вещи (LLM, поиск, TTS) уходят в пул, чтобы polling не стоял.
         # Порядок внутри одного чата держит lock на (chat_id, thread_id).
-        self._persona_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="persona")
-        self._persona_locks: Dict[Tuple[int, Optional[int]], threading.Lock] = {}
+        self._persona_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="persona")
+        self._persona_queues: Dict[Tuple[int, Optional[int]], "queue.Queue"] = {}
         self._persona_locks_guard = threading.Lock()
         self._msg_seq = 0
         self._last_muse_restart = 0.0
@@ -753,26 +755,26 @@ class TopicGuardBot:
         except Exception as e:
             logger.warning("Could not restart muse2api: %s", e)
 
-    def _persona_lock(self, key: Tuple[int, Optional[int]]) -> threading.Lock:
-        with self._persona_locks_guard:
-            lock = self._persona_locks.get(key)
-            if lock is None:
-                lock = threading.Lock()
-                self._persona_locks[key] = lock
-            return lock
-
-    def _submit(self, fn, *args) -> None:
-        """Выполнить что-то медленное в пуле, не блокируя polling."""
-        def worker() -> None:
+    def _persona_loop(self, key: Tuple[int, Optional[int]], q: "queue.Queue") -> None:
+        """Один поток на чат: ответы не обгоняют друг друга, пул не голодает."""
+        while True:
             try:
-                fn(*args)
+                job = q.get(timeout=300)
+            except queue.Empty:
+                with self._persona_locks_guard:
+                    if q.empty():
+                        self._persona_queues.pop(key, None)
+                        return
+                continue
+            message, chat_id, tid, chat_cfg, is_private_chat = job
+            try:
+                self._maybe_reply_in_general(
+                    message, chat_id, tid, chat_cfg=chat_cfg, is_private_chat=is_private_chat
+                )
             except Exception as e:
-                logger.warning("Background job %s failed: %s", getattr(fn, "__name__", fn), e)
-
-        try:
-            self._persona_pool.submit(worker)
-        except Exception as e:
-            logger.warning("Background pool rejected job: %s", e)
+                logger.warning("Persona worker failed: %s", e)
+            finally:
+                q.task_done()
 
     def _dispatch_persona(
         self,
@@ -782,29 +784,34 @@ class TopicGuardBot:
         chat_cfg: Optional[Dict[str, Any]],
         is_private_chat: bool,
     ) -> None:
-        """Ответ персоны — в фоне, с сохранением порядка внутри ветки."""
+        """Ответ персоны — в очередь чата, с сохранением порядка."""
         if getattr(self, "_inline_persona", False):
-            # Тестовый режим: без потоков, иначе assertions гоняются с воркерами
             self._maybe_reply_in_general(
                 message, chat_id, tid, chat_cfg=chat_cfg, is_private_chat=is_private_chat
             )
             return
-        lock = self._persona_lock((chat_id, tid))
 
-        def worker() -> None:
-            with lock:
-                try:
-                    self._maybe_reply_in_general(
-                        message, chat_id, tid, chat_cfg=chat_cfg, is_private_chat=is_private_chat
-                    )
-                except Exception as e:
-                    logger.warning("Persona worker failed: %s", e)
+        key = (chat_id, tid)
+        with self._persona_locks_guard:
+            q = self._persona_queues.get(key)
+            if q is None:
+                q = queue.Queue()
+                self._persona_queues[key] = q
+                threading.Thread(
+                    target=self._persona_loop, args=(key, q), daemon=True,
+                    name=f"persona-{chat_id}-{tid}",
+                ).start()
+        q.put((message, chat_id, tid, chat_cfg, is_private_chat))
 
-        try:
-            self._persona_pool.submit(worker)
-        except Exception as e:
-            logger.warning("Persona pool rejected job, running inline: %s", e)
-            worker()
+    def flush_persona(self, timeout: float = 30.0) -> None:
+        """Дождаться, пока очереди ответов опустеют (тесты / мягкое завершение)."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            with self._persona_locks_guard:
+                queues = list(self._persona_queues.values())
+            if not queues or all(q.unfinished_tasks == 0 for q in queues):
+                return
+            time.sleep(0.05)
 
     @staticmethod
     def _media_from_message(msg: Dict[str, Any]) -> Tuple[Optional[str], str, str, Optional[str]]:
@@ -1083,11 +1090,17 @@ class TopicGuardBot:
         prompt_with_quote = f"{reply_context}\n{text}".strip() if reply_context else text
         # Ответ на картинку с вопросом: даём модели словесное описание кадра,
         # чтобы она отвечала на вопрос, а не комментировала пикчу вслепую.
-        if reply_file_id and self.vision:
+        # Описание кадра нужно только для вопроса/оценки картинки, иначе
+        # это лишние 10-20 с к задержке ответа
+        asks_about_image = bool(re.search(
+            r"(?i)\b(оцени|оценка|что на|что это|что там|что за|опиши|как тебе|разбери|разгляди|глянь)\b",
+            text or "",
+        ))
+        if reply_file_id and self.vision and asks_about_image:
             try:
                 img_bytes = self.api.get_file_bytes(reply_file_id)
                 if img_bytes:
-                    ctx_timeout = 45.0 if str(reply_media_mime).startswith("video") else 20.0
+                    ctx_timeout = 30.0 if str(reply_media_mime).startswith("video") else 12.0
                     # Именно описание, а не шутка: модель должна отвечать по факту
                     desc = self.vision.describe(
                         img_bytes, mime=reply_media_mime, timeout=ctx_timeout
@@ -1097,6 +1110,7 @@ class TopicGuardBot:
             except Exception as e:
                 logger.debug("Vision context for reply failed: %s", e)
 
+        gen_started = time.time()
         reply_text = generate_reply(
             text=prompt_with_quote,
             author_name=author_name,
@@ -1117,6 +1131,10 @@ class TopicGuardBot:
             author_own_text=self._author_own_text(chat_id, mem_tid, author_name),
             owner_name=self.config.owner_name,
             owner_username=self.config.owner_username,
+        )
+        logger.info(
+            "Persona generation for msg %s in %s took %.1fs",
+            msg_id, chat_id, time.time() - gen_started,
         )
         if not reply_text and called_or_reply:
             # Обратились по имени, а модель промолчала — пробуем ещё раз,
